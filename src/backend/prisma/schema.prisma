@@ -1,0 +1,205 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum BookingType {
+  NIGHTLY
+  HOURLY
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+}
+
+enum PriceType {
+  BASE_NIGHTLY
+  WEEKEND_NIGHTLY
+  SEASONAL_NIGHTLY
+  HOURLY
+}
+
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  password  String
+  firstName String?
+  lastName  String?
+  role      Role      @default(USER)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  posts Post[]
+
+  @@map("users")
+}
+
+model Product {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  price       Float
+  stock       Int       @default(0)
+  category    String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@map("products")
+}
+
+model Post {
+  id        String     @id @default(uuid())
+  title     String
+  slug      String     @unique
+  content   String     @default("")
+  status    PostStatus @default(DRAFT)
+  authorId  String
+  author    User       @relation(fields: [authorId], references: [id])
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  deletedAt DateTime?
+
+  @@map("posts")
+}
+
+model Room {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  capacity    Int
+  area        Float?
+  floor       Int?
+  amenities   String[]
+  images      String[]
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  bookings    Booking[]
+  prices      RoomPrice[]
+
+  @@map("rooms")
+}
+
+model RoomPrice {
+  id         String    @id @default(uuid())
+  roomId     String
+  room       Room      @relation(fields: [roomId], references: [id])
+  priceType  PriceType
+  price      Float
+
+  // Áp dụng cho date range (seasonal override)
+  startDate  DateTime?
+  endDate    DateTime?
+
+  // Ngày trong tuần áp dụng (0=CN..6=T7); rỗng = tất cả ngày
+  daysOfWeek Int[]
+
+  // Chỉ dùng cho HOURLY: khung giờ áp dụng (0-23)
+  hourFrom   Int?
+  hourTo     Int?
+
+  // Giảm giá lưu trú dài (chỉ NIGHTLY)
+  minNights  Int?
+  discount   Float?
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@map("room_prices")
+}
+
+model Guest {
+  id        String    @id @default(uuid())
+  fullName  String
+  phone     String
+  email     String?
+  notes     String?
+  tags      String[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  bookings  Booking[]
+
+  @@map("guests")
+}
+
+model Booking {
+  id             String        @id @default(uuid())
+  bookingCode    String        @unique
+  roomId         String
+  room           Room          @relation(fields: [roomId], references: [id])
+  guestId        String
+  guest          Guest         @relation(fields: [guestId], references: [id])
+
+  bookingType    BookingType
+  checkIn        DateTime
+  checkOut       DateTime
+  durationHours  Int?
+
+  adults         Int           @default(1)
+  children       Int           @default(0)
+  specialRequest String?
+
+  status         BookingStatus @default(PENDING)
+  totalPrice     Float
+  source         String        @default("direct")
+  internalNote   String?
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
+
+  payment        Payment?
+
+  @@map("bookings")
+}
+
+model Payment {
+  id          String        @id @default(uuid())
+  bookingId   String        @unique
+  booking     Booking       @relation(fields: [bookingId], references: [id])
+  amount      Float
+  method      String        @default("bank_transfer")
+  status      PaymentStatus @default(PENDING)
+  bankRef     String?
+  paidAt      DateTime?
+  confirmedBy String?
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@map("payments")
+}
