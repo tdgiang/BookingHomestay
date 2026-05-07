@@ -16,7 +16,7 @@
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PricingService } from './pricing.service';
 import { PricingRepository } from '../infrastructure/pricing.repository';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -83,9 +83,120 @@ describe('PricingService', () => {
     prisma = module.get(PrismaService);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => jest.resetAllMocks());
 
   it('should be defined', () => expect(service).toBeDefined());
+
+  // ─── Admin CRUD ──────────────────────────────────────────────────────────
+
+  describe('createPrice', () => {
+    it('throws NotFoundException when room does not exist', async () => {
+      prisma.room.findUnique.mockResolvedValue(null);
+
+      let caught: unknown;
+      try { await service.createPrice('bad-room', { priceType: PriceType.BASE_NIGHTLY, price: 300000 } as any); }
+      catch (e) { caught = e; }
+      expect(caught).toBeInstanceOf(NotFoundException);
+    });
+
+    it('creates price rule when room exists', async () => {
+      prisma.room.findUnique.mockResolvedValue({ id: 'room-1' });
+      repository.create.mockResolvedValue(BASE);
+
+      const result = await service.createPrice('room-1', {
+        priceType: PriceType.BASE_NIGHTLY, price: 350000, daysOfWeek: [],
+      } as any);
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ priceType: PriceType.BASE_NIGHTLY, price: 350000 }),
+      );
+      expect(result).toEqual(BASE);
+    });
+
+    it('defaults daysOfWeek to [] when not provided', async () => {
+      prisma.room.findUnique.mockResolvedValue({ id: 'room-1' });
+      repository.create.mockResolvedValue(BASE);
+
+      await service.createPrice('room-1', { priceType: PriceType.HOURLY, price: 80000 } as any);
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ daysOfWeek: [] }),
+      );
+    });
+  });
+
+  describe('updatePrice', () => {
+    it('updates rule when found', async () => {
+      repository.findOne.mockResolvedValue(BASE);
+      repository.update.mockResolvedValue({ ...BASE, price: 400000 });
+
+      const result = await service.updatePrice('price-1', { price: 400000 } as any);
+
+      expect(repository.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'price-1' } }),
+      );
+      expect((result as any).price).toBe(400000);
+    });
+
+    it('throws NotFoundException when rule not found', async () => {
+      repository.findOne.mockResolvedValue(null);
+
+      let caught: unknown;
+      try { await service.updatePrice('bad-id', {} as any); } catch (e) { caught = e; }
+      expect(caught).toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('deletePrice', () => {
+    it('removes rule when found', async () => {
+      repository.findOne.mockResolvedValue(BASE);
+      repository.remove.mockResolvedValue(BASE);
+
+      await service.deletePrice('price-1');
+
+      expect(repository.remove).toHaveBeenCalledWith({ id: 'price-1' });
+    });
+
+    it('throws NotFoundException when rule not found', async () => {
+      repository.findOne.mockResolvedValue(null);
+
+      let caught: unknown;
+      try { await service.deletePrice('bad-id'); } catch (e) { caught = e; }
+      expect(caught).toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('getPricesByRoom', () => {
+    it('returns all price rules for a room', async () => {
+      repository.findByRoomId.mockResolvedValue([BASE, WEEKEND]);
+
+      const result = await service.getPricesByRoom('room-1');
+
+      expect(repository.findByRoomId).toHaveBeenCalledWith('room-1');
+      expect(result).toHaveLength(2);
+    });
+  });
+
+  describe('calculatePrice — SEASONAL highest-price wins (PR-6)', () => {
+    it('PR-6: picks highest seasonal price when multiple rules overlap', async () => {
+      const seasonal1 = makePrice({
+        id: 's1', priceType: PriceType.SEASONAL_NIGHTLY, price: 500000,
+        startDate: new Date('2026-06-01'), endDate: new Date('2026-06-30'),
+      });
+      const seasonal2 = makePrice({
+        id: 's2', priceType: PriceType.SEASONAL_NIGHTLY, price: 700000,
+        startDate: new Date('2026-06-01'), endDate: new Date('2026-06-30'),
+      });
+      repository.findByRoomId.mockResolvedValue([BASE, seasonal1, seasonal2]);
+
+      const result = await service.calculatePrice(
+        'room-1', BookingType.NIGHTLY,
+        new Date('2026-06-12T14:00:00Z'), new Date('2026-06-13T12:00:00Z'),
+      );
+
+      expect(result.breakdown[0].price).toBe(700000);
+    });
+  });
 
   // ─── PR-12: isHourInRange (pure logic, public method) ─────────────────────
 
@@ -152,9 +263,9 @@ describe('PricingService', () => {
       repository.findByRoomId.mockResolvedValue([BASE]);
       const d = new Date('2026-07-06T14:00:00Z');
 
-      await expect(
-        service.calculatePrice('room-1', BookingType.NIGHTLY, d, d),
-      ).rejects.toThrow(BadRequestException);
+      let caught: unknown;
+      try { await service.calculatePrice('room-1', BookingType.NIGHTLY, d, d); } catch (e) { caught = e; }
+      expect(caught).toBeInstanceOf(BadRequestException);
     });
 
     it('PR-1: returns 0 price breakdown when no pricing rules exist', async () => {
@@ -324,17 +435,17 @@ describe('PricingService', () => {
     it('PR-9: throws BadRequestException when durationHours < 2', async () => {
       repository.findByRoomId.mockResolvedValue([HOURLY_DAY]);
 
-      await expect(
-        service.calculatePrice('room-1', BookingType.HOURLY, new Date(), undefined, 1),
-      ).rejects.toThrow(BadRequestException);
+      let caught: unknown;
+      try { await service.calculatePrice('room-1', BookingType.HOURLY, new Date(), undefined, 1); } catch (e) { caught = e; }
+      expect(caught).toBeInstanceOf(BadRequestException);
     });
 
     it('PR-9: throws when durationHours is missing for HOURLY', async () => {
       repository.findByRoomId.mockResolvedValue([HOURLY_DAY]);
 
-      await expect(
-        service.calculatePrice('room-1', BookingType.HOURLY, new Date(), undefined, undefined),
-      ).rejects.toThrow(BadRequestException);
+      let caught: unknown;
+      try { await service.calculatePrice('room-1', BookingType.HOURLY, new Date(), undefined, undefined); } catch (e) { caught = e; }
+      expect(caught).toBeInstanceOf(BadRequestException);
     });
 
     it('PR-7: totalPrice = pricePerHour × hours', async () => {
@@ -381,9 +492,9 @@ describe('PricingService', () => {
     it('throws NotFoundException when room not found or inactive', async () => {
       prisma.room.findFirst.mockResolvedValue(null);
 
-      await expect(
-        service.checkAvailability('bad-room', checkIn, checkOut),
-      ).rejects.toThrow();
+      let caught: unknown;
+      try { await service.checkAvailability('bad-room', checkIn, checkOut); } catch (e) { caught = e; }
+      expect(caught).toBeInstanceOf(NotFoundException);
     });
   });
 });
