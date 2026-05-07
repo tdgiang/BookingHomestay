@@ -1,15 +1,20 @@
 /**
  * User Journeys — BookingsService
  *
- * BK-1: Customer creates nightly booking → unique HSB-YYYYMMDD-XXXX code + payment record
- * BK-2: Customer creates hourly booking → correct price calculated
- * BK-3: Booking rejected when room not found or inactive
- * BK-4: Booking rejected when checkIn >= checkOut
- * BK-5: Booking rejected when room is already booked for overlapping dates
- * BK-6: Customer looks up booking by code; 404 for unknown code
- * BK-7: Admin lists bookings with status / roomId / date filters
- * BK-8: Admin updates booking status and internal note
- * BK-9: Admin cancels booking; error if already cancelled
+ * BK-1:  Customer creates nightly booking → unique HSB-YYYYMMDD-XXXX code + payment record
+ * BK-2:  Customer creates hourly booking → correct price calculated
+ * BK-3:  Booking rejected when room not found or inactive
+ * BK-4:  Booking rejected when checkIn >= checkOut
+ * BK-5:  Booking rejected when room is already booked for overlapping dates
+ * BK-6:  Customer looks up booking by code; 404 for unknown code
+ * BK-7:  Admin lists bookings with status / roomId / date filters
+ * BK-8:  Admin updates booking status and internal note
+ * BK-9:  Admin cancels booking; error if already cancelled
+ * BK-10: Admin blocks dates for valid rooms — creates BLK- bookings with source='block'
+ * BK-11: blockDates skips rooms that do not exist and returns only valid results
+ * BK-12: blockDates reuses existing BLOCK-SYSTEM guest when found
+ * BK-13: blockDates creates BLOCK-SYSTEM guest when not found
+ * BK-14: blockDates uses provided reason as internalNote; defaults to 'Blocked by admin'
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
@@ -99,7 +104,9 @@ describe('BookingsService', () => {
 
     const mockTx = makeMockTx();
     const mockPrisma = {
-      room: { findFirst: jest.fn() },
+      room:    { findFirst: jest.fn() },
+      guest:   { findFirst: jest.fn(), create: jest.fn() },
+      booking: { create: jest.fn() },
       $transaction: jest.fn().mockImplementation(async (fn: any) => fn(mockTx)),
     };
 
@@ -412,6 +419,179 @@ describe('BookingsService', () => {
       });
 
       await expect(service.cancel('booking-1')).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ─── BK-10 ~ BK-14: blockDates ───────────────────────────────────────────
+
+  describe('blockDates', () => {
+    const BLOCK_GUEST = { id: 'block-guest-id', fullName: 'Block (System)', phone: 'BLOCK-SYSTEM' };
+    const ROOM_STUB_2 = { id: 'room-2', name: 'Phòng 2', deletedAt: null };
+
+    const BLOCK_BOOKING = {
+      id: 'blk-1', bookingCode: 'BLK-20260810-ABCD',
+      source: 'block', status: BookingStatus.CONFIRMED, totalPrice: 0,
+    };
+
+    it('BK-10: creates block bookings for each valid room with BLK- prefix', async () => {
+      prisma.guest.findFirst.mockResolvedValue(BLOCK_GUEST);
+      prisma.room.findFirst.mockResolvedValue(ROOM_STUB_2);
+      prisma.booking.create.mockResolvedValue(BLOCK_BOOKING);
+
+      const result = await service.blockDates({
+        roomIds: ['room-2'],
+        checkIn: '2026-08-10T00:00:00Z',
+        checkOut: '2026-08-12T00:00:00Z',
+      });
+
+      expect(result).toHaveLength(1);
+      expect(prisma.booking.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('BK-10: booking code starts with BLK-', async () => {
+      prisma.guest.findFirst.mockResolvedValue(BLOCK_GUEST);
+      prisma.room.findFirst.mockResolvedValue(ROOM_STUB_2);
+      prisma.booking.create.mockResolvedValue(BLOCK_BOOKING);
+
+      await service.blockDates({
+        roomIds: ['room-2'],
+        checkIn: '2026-08-10T00:00:00Z',
+        checkOut: '2026-08-12T00:00:00Z',
+      });
+
+      const createCall = prisma.booking.create.mock.calls[0][0];
+      expect(createCall.data.bookingCode).toMatch(/^BLK-\d{8}-[A-Z0-9]{4}$/);
+    });
+
+    it('BK-10: created booking has source="block" and status=CONFIRMED', async () => {
+      prisma.guest.findFirst.mockResolvedValue(BLOCK_GUEST);
+      prisma.room.findFirst.mockResolvedValue(ROOM_STUB_2);
+      prisma.booking.create.mockResolvedValue(BLOCK_BOOKING);
+
+      await service.blockDates({
+        roomIds: ['room-2'],
+        checkIn: '2026-08-10T00:00:00Z',
+        checkOut: '2026-08-12T00:00:00Z',
+      });
+
+      const createCall = prisma.booking.create.mock.calls[0][0];
+      expect(createCall.data.source).toBe('block');
+      expect(createCall.data.status).toBe(BookingStatus.CONFIRMED);
+      expect(createCall.data.totalPrice).toBe(0);
+    });
+
+    it('BK-11: skips rooms that do not exist and returns only valid results', async () => {
+      prisma.guest.findFirst.mockResolvedValue(BLOCK_GUEST);
+      // First room exists, second does not
+      prisma.room.findFirst
+        .mockResolvedValueOnce(ROOM_STUB_2)
+        .mockResolvedValueOnce(null);
+      prisma.booking.create.mockResolvedValue(BLOCK_BOOKING);
+
+      const result = await service.blockDates({
+        roomIds: ['room-2', 'bad-room'],
+        checkIn: '2026-08-10T00:00:00Z',
+        checkOut: '2026-08-12T00:00:00Z',
+      });
+
+      expect(result).toHaveLength(1);
+      expect(prisma.booking.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('BK-11: returns empty array when all roomIds are invalid', async () => {
+      prisma.guest.findFirst.mockResolvedValue(BLOCK_GUEST);
+      prisma.room.findFirst.mockResolvedValue(null);
+
+      const result = await service.blockDates({
+        roomIds: ['bad-room-1', 'bad-room-2'],
+        checkIn: '2026-08-10T00:00:00Z',
+        checkOut: '2026-08-12T00:00:00Z',
+      });
+
+      expect(result).toHaveLength(0);
+      expect(prisma.booking.create).not.toHaveBeenCalled();
+    });
+
+    it('BK-12: reuses existing BLOCK-SYSTEM guest when found', async () => {
+      prisma.guest.findFirst.mockResolvedValue(BLOCK_GUEST);
+      prisma.room.findFirst.mockResolvedValue(ROOM_STUB_2);
+      prisma.booking.create.mockResolvedValue(BLOCK_BOOKING);
+
+      await service.blockDates({
+        roomIds: ['room-2'],
+        checkIn: '2026-08-10T00:00:00Z',
+        checkOut: '2026-08-12T00:00:00Z',
+      });
+
+      expect(prisma.guest.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { phone: 'BLOCK-SYSTEM' } }),
+      );
+      expect(prisma.guest.create).not.toHaveBeenCalled();
+    });
+
+    it('BK-13: creates BLOCK-SYSTEM guest when not found', async () => {
+      prisma.guest.findFirst.mockResolvedValue(null);
+      prisma.guest.create.mockResolvedValue(BLOCK_GUEST);
+      prisma.room.findFirst.mockResolvedValue(ROOM_STUB_2);
+      prisma.booking.create.mockResolvedValue(BLOCK_BOOKING);
+
+      await service.blockDates({
+        roomIds: ['room-2'],
+        checkIn: '2026-08-10T00:00:00Z',
+        checkOut: '2026-08-12T00:00:00Z',
+      });
+
+      expect(prisma.guest.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ phone: 'BLOCK-SYSTEM', fullName: 'Block (System)' }),
+        }),
+      );
+    });
+
+    it('BK-14: uses provided reason as internalNote', async () => {
+      prisma.guest.findFirst.mockResolvedValue(BLOCK_GUEST);
+      prisma.room.findFirst.mockResolvedValue(ROOM_STUB_2);
+      prisma.booking.create.mockResolvedValue(BLOCK_BOOKING);
+
+      await service.blockDates({
+        roomIds: ['room-2'],
+        checkIn: '2026-08-10T00:00:00Z',
+        checkOut: '2026-08-12T00:00:00Z',
+        reason: 'Bảo trì phòng',
+      });
+
+      const createCall = prisma.booking.create.mock.calls[0][0];
+      expect(createCall.data.internalNote).toBe('Bảo trì phòng');
+    });
+
+    it('BK-14: defaults internalNote to "Blocked by admin" when reason omitted', async () => {
+      prisma.guest.findFirst.mockResolvedValue(BLOCK_GUEST);
+      prisma.room.findFirst.mockResolvedValue(ROOM_STUB_2);
+      prisma.booking.create.mockResolvedValue(BLOCK_BOOKING);
+
+      await service.blockDates({
+        roomIds: ['room-2'],
+        checkIn: '2026-08-10T00:00:00Z',
+        checkOut: '2026-08-12T00:00:00Z',
+      });
+
+      const createCall = prisma.booking.create.mock.calls[0][0];
+      expect(createCall.data.internalNote).toBe('Blocked by admin');
+    });
+
+    it('BK-10: creates one block booking per valid room (multiple rooms)', async () => {
+      prisma.guest.findFirst.mockResolvedValue(BLOCK_GUEST);
+      prisma.room.findFirst.mockResolvedValue(ROOM_STUB_2);
+      prisma.booking.create.mockResolvedValue(BLOCK_BOOKING);
+
+      const result = await service.blockDates({
+        roomIds: ['room-1', 'room-2', 'room-3'],
+        checkIn: '2026-08-10T00:00:00Z',
+        checkOut: '2026-08-12T00:00:00Z',
+      });
+
+      expect(prisma.booking.create).toHaveBeenCalledTimes(3);
+      expect(result).toHaveLength(3);
     });
   });
 });
