@@ -8,6 +8,7 @@ import { PricingService } from '../../pricing/application/pricing.service';
 import { CreateBookingDto } from '../interface/dto/create-booking.dto';
 import { UpdateBookingDto } from '../interface/dto/update-booking.dto';
 import { BookingQueryDto } from '../interface/dto/booking-query.dto';
+import { BlockDatesDto } from '../interface/dto/block-dates.dto';
 import { BookingType, BookingStatus, Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
 
@@ -150,5 +151,43 @@ export class BookingsService {
       throw new BadRequestException('Booking đã bị hủy trước đó');
     }
     return this.repository.softRemove({ id });
+  }
+
+  async blockDates(dto: BlockDatesDto) {
+    const checkIn  = new Date(dto.checkIn);
+    const checkOut = new Date(dto.checkOut);
+    const dateStr  = checkIn.toISOString().slice(0, 10).replace(/-/g, '');
+
+    // Find or create a system "block" guest
+    let blockGuest = await this.prisma.guest.findFirst({ where: { phone: 'BLOCK-SYSTEM' } });
+    if (!blockGuest) {
+      blockGuest = await this.prisma.guest.create({
+        data: { fullName: 'Block (System)', phone: 'BLOCK-SYSTEM', tags: [] },
+      });
+    }
+
+    const results = await Promise.all(
+      dto.roomIds.map(async (roomId) => {
+        const room = await this.prisma.room.findFirst({ where: { id: roomId, deletedAt: null } });
+        if (!room) return null;
+
+        return this.prisma.booking.create({
+          data: {
+            bookingCode: `BLK-${dateStr}-${nanoid()}`,
+            roomId,
+            guestId: blockGuest!.id,
+            bookingType: BookingType.NIGHTLY,
+            checkIn,
+            checkOut,
+            totalPrice: 0,
+            status: BookingStatus.CONFIRMED,
+            source: 'block',
+            internalNote: dto.reason ?? 'Blocked by admin',
+          },
+        });
+      }),
+    );
+
+    return results.filter(Boolean);
   }
 }

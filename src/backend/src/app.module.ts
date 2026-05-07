@@ -9,6 +9,10 @@ import { UsersModule } from './modules/users/users.module';
 import { ProductsModule } from './modules/products/products.module';
 import { RoomsModule } from './modules/rooms/rooms.module';
 import { PricingModule } from './modules/pricing/pricing.module';
+import { GuestsModule } from './modules/guests/guests.module';
+import { BookingsModule } from './modules/bookings/bookings.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { CacheModule } from '@nestjs/cache-manager';
 import { APP_GUARD } from '@nestjs/core';
@@ -50,6 +54,10 @@ import { RolesGuard } from './common/guards/roles.guard';
     ProductsModule,
     RoomsModule,
     PricingModule,
+    GuestsModule,
+    BookingsModule,
+    PaymentsModule,
+    DashboardModule,
   ],
   providers: [
     {
