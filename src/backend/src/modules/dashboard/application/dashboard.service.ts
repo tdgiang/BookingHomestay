@@ -66,8 +66,11 @@ export class DashboardService {
   }
 
   async getRevenueChart(days = 30) {
-    const end = new Date(); end.setHours(23, 59, 59, 999);
-    const start = new Date(); start.setDate(start.getDate() - days + 1); start.setHours(0, 0, 0, 0);
+    // Use UTC methods throughout to avoid local-timezone / toISOString mismatch
+    const end   = new Date(); end.setUTCHours(23, 59, 59, 999);
+    const start = new Date();
+    start.setUTCDate(start.getUTCDate() - days + 1);
+    start.setUTCHours(0, 0, 0, 0);
 
     const payments = await this.prisma.payment.findMany({
       where: { status: PaymentStatus.PAID, paidAt: { gte: start, lte: end } },
@@ -76,7 +79,8 @@ export class DashboardService {
 
     const map = new Map<string, number>();
     for (let i = 0; i < days; i++) {
-      const d = new Date(start); d.setDate(d.getDate() + i);
+      const d = new Date(start);
+      d.setUTCDate(d.getUTCDate() + i);
       map.set(d.toISOString().slice(0, 10), 0);
     }
     for (const p of payments) {
