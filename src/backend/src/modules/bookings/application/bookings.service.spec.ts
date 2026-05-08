@@ -15,6 +15,7 @@
  * BK-12: blockDates reuses existing BLOCK-SYSTEM guest when found
  * BK-13: blockDates creates BLOCK-SYSTEM guest when not found
  * BK-14: blockDates uses provided reason as internalNote; defaults to 'Blocked by admin'
+ * BK-15: After successful booking, notificationsService.onNewBooking is called with correct data
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
@@ -25,6 +26,7 @@ import { BookingsService } from './bookings.service';
 import { BookingsRepository } from '../infrastructure/bookings.repository';
 import { GuestsService } from '../../guests/application/guests.service';
 import { PricingService } from '../../pricing/application/pricing.service';
+import { NotificationsService } from '../../notifications/application/notifications.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { BookingStatus, BookingType } from '@prisma/client';
 
@@ -81,6 +83,7 @@ describe('BookingsService', () => {
   let repository: jest.Mocked<BookingsRepository>;
   let guestsService: jest.Mocked<GuestsService>;
   let pricingService: jest.Mocked<PricingService>;
+  let notificationsService: jest.Mocked<NotificationsService>;
   let prisma: any;
 
   const makeMockTx = () => ({
@@ -102,6 +105,8 @@ describe('BookingsService', () => {
 
     const mockPricing = { calculatePrice: jest.fn() };
 
+    const mockNotifications = { onNewBooking: jest.fn().mockResolvedValue(undefined) };
+
     const mockTx = makeMockTx();
     const mockPrisma = {
       room:    { findFirst: jest.fn() },
@@ -116,6 +121,7 @@ describe('BookingsService', () => {
         { provide: BookingsRepository, useValue: mockRepo },
         { provide: GuestsService, useValue: mockGuests },
         { provide: PricingService, useValue: mockPricing },
+        { provide: NotificationsService, useValue: mockNotifications },
         { provide: PrismaService, useValue: mockPrisma },
       ],
     }).compile();
@@ -124,6 +130,7 @@ describe('BookingsService', () => {
     repository = module.get(BookingsRepository);
     guestsService = module.get(GuestsService);
     pricingService = module.get(PricingService);
+    notificationsService = module.get(NotificationsService);
     prisma = module.get(PrismaService);
   });
 
@@ -592,6 +599,135 @@ describe('BookingsService', () => {
 
       expect(prisma.booking.create).toHaveBeenCalledTimes(3);
       expect(result).toHaveLength(3);
+    });
+  });
+
+  // ─── BK-15: notifications on create ──────────────────────────────────────
+
+  describe('create — notifications (BK-15)', () => {
+    beforeEach(() => {
+      prisma.room.findFirst.mockResolvedValue(ROOM_STUB);
+      repository.countConflicts.mockResolvedValue(0);
+      pricingService.calculatePrice.mockResolvedValue(PRICE_STUB as any);
+      guestsService.findOrCreate.mockResolvedValue(GUEST_STUB as any);
+    });
+
+    it('BK-15: calls notificationsService.onNewBooking after successful booking', async () => {
+      await service.create({
+        roomId: 'room-1',
+        bookingType: BookingType.NIGHTLY,
+        checkIn: '2026-07-01T14:00:00Z',
+        checkOut: '2026-07-03T12:00:00Z',
+        fullName: 'Nguyễn Văn A',
+        phone: '0901234567',
+      });
+
+      expect(notificationsService.onNewBooking).toHaveBeenCalledTimes(1);
+    });
+
+    it('BK-15: onNewBooking is called with correct bookingCode prefix', async () => {
+      await service.create({
+        roomId: 'room-1',
+        bookingType: BookingType.NIGHTLY,
+        checkIn: '2026-07-01T14:00:00Z',
+        checkOut: '2026-07-03T12:00:00Z',
+        fullName: 'Nguyễn Văn A',
+        phone: '0901234567',
+      });
+
+      const arg = notificationsService.onNewBooking.mock.calls[0][0];
+      expect(arg.bookingCode).toMatch(/^HSB-/);
+    });
+
+    it('BK-15: onNewBooking is called with correct guestName', async () => {
+      await service.create({
+        roomId: 'room-1',
+        bookingType: BookingType.NIGHTLY,
+        checkIn: '2026-07-01T14:00:00Z',
+        checkOut: '2026-07-03T12:00:00Z',
+        fullName: 'Nguyễn Văn A',
+        phone: '0901234567',
+      });
+
+      const arg = notificationsService.onNewBooking.mock.calls[0][0];
+      expect(arg.guestName).toBe(GUEST_STUB.fullName);
+    });
+
+    it('BK-15: onNewBooking is called with correct roomName', async () => {
+      await service.create({
+        roomId: 'room-1',
+        bookingType: BookingType.NIGHTLY,
+        checkIn: '2026-07-01T14:00:00Z',
+        checkOut: '2026-07-03T12:00:00Z',
+        fullName: 'A',
+        phone: '0900000000',
+      });
+
+      const arg = notificationsService.onNewBooking.mock.calls[0][0];
+      expect(arg.roomName).toBe(ROOM_STUB.name);
+    });
+
+    it('BK-15: onNewBooking is called with checkIn as a Date object', async () => {
+      await service.create({
+        roomId: 'room-1',
+        bookingType: BookingType.NIGHTLY,
+        checkIn: '2026-07-01T14:00:00Z',
+        checkOut: '2026-07-03T12:00:00Z',
+        fullName: 'A',
+        phone: '0900000000',
+      });
+
+      const arg = notificationsService.onNewBooking.mock.calls[0][0];
+      expect(arg.checkIn).toBeInstanceOf(Date);
+    });
+
+    it('BK-15: does NOT call onNewBooking when booking fails (checkIn >= checkOut)', async () => {
+      await expect(
+        service.create({
+          roomId: 'room-1',
+          bookingType: BookingType.NIGHTLY,
+          checkIn: '2026-07-03T14:00:00Z',
+          checkOut: '2026-07-01T12:00:00Z',
+          fullName: 'A',
+          phone: '0900000000',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(notificationsService.onNewBooking).not.toHaveBeenCalled();
+    });
+
+    it('BK-15: does NOT call onNewBooking when room not found', async () => {
+      prisma.room.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.create({
+          roomId: 'bad-room',
+          bookingType: BookingType.NIGHTLY,
+          checkIn: '2026-07-01T14:00:00Z',
+          checkOut: '2026-07-03T12:00:00Z',
+          fullName: 'A',
+          phone: '0900000000',
+        }),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(notificationsService.onNewBooking).not.toHaveBeenCalled();
+    });
+
+    it('BK-15: does NOT call onNewBooking when dates conflict', async () => {
+      repository.countConflicts.mockResolvedValue(2);
+
+      await expect(
+        service.create({
+          roomId: 'room-1',
+          bookingType: BookingType.NIGHTLY,
+          checkIn: '2026-07-01T14:00:00Z',
+          checkOut: '2026-07-03T12:00:00Z',
+          fullName: 'A',
+          phone: '0900000000',
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      expect(notificationsService.onNewBooking).not.toHaveBeenCalled();
     });
   });
 });
