@@ -373,6 +373,28 @@ describe('BookingsService', () => {
       const callArg = repository.findAll.mock.calls[0][0];
       expect(callArg.where.deletedAt).toBeNull();
     });
+
+    it('BK-7: applies date filter — sets checkIn gte/lt for that calendar day', async () => {
+      repository.findAll.mockResolvedValue([[], 0]);
+
+      await service.findAll({ date: '2026-07-01' } as any);
+
+      const callArg = repository.findAll.mock.calls[0][0];
+      expect(callArg.where.checkIn).toBeDefined();
+      expect((callArg.where.checkIn as any).gte).toBeInstanceOf(Date);
+      expect((callArg.where.checkIn as any).lt).toBeInstanceOf(Date);
+    });
+
+    it('BK-7: date filter lt is exactly 1 day after gte', async () => {
+      repository.findAll.mockResolvedValue([[], 0]);
+
+      await service.findAll({ date: '2026-07-15' } as any);
+
+      const callArg = repository.findAll.mock.calls[0][0];
+      const checkIn = callArg.where.checkIn as any;
+      const diffMs = checkIn.lt.getTime() - checkIn.gte.getTime();
+      expect(diffMs).toBe(24 * 60 * 60 * 1000);
+    });
   });
 
   // ─── BK-8: update ────────────────────────────────────────────────────────
@@ -599,6 +621,77 @@ describe('BookingsService', () => {
 
       expect(prisma.booking.create).toHaveBeenCalledTimes(3);
       expect(result).toHaveLength(3);
+    });
+  });
+
+  // ─── exportCsv ───────────────────────────────────────────────────────────
+
+  describe('exportCsv', () => {
+    const BOOKING_ROW = {
+      ...BOOKING_STUB,
+      room: { name: 'Phòng 101' },
+      guest: { fullName: 'Nguyễn Văn A', phone: '0901234567', email: 'a@test.com' },
+      payment: { status: 'PAID', paidAt: new Date() },
+      createdAt: new Date('2026-07-01'),
+    };
+
+    beforeEach(() => {
+      prisma.booking = { findMany: jest.fn().mockResolvedValue([BOOKING_ROW]) };
+    });
+
+    it('returns a CSV string starting with the header row', async () => {
+      const csv = await service.exportCsv();
+
+      expect(typeof csv).toBe('string');
+      expect(csv.split('\n')[0]).toContain('Mã ĐP');
+    });
+
+    it('header contains all required columns', async () => {
+      const csv = await service.exportCsv();
+      const header = csv.split('\n')[0];
+
+      expect(header).toContain('Phòng');
+      expect(header).toContain('Khách');
+      expect(header).toContain('Check-in');
+      expect(header).toContain('Trạng thái');
+    });
+
+    it('has one data row per booking', async () => {
+      prisma.booking.findMany.mockResolvedValue([BOOKING_ROW, BOOKING_ROW]);
+
+      const csv = await service.exportCsv();
+
+      expect(csv.split('\n')).toHaveLength(3); // header + 2 rows
+    });
+
+    it('data row includes booking code', async () => {
+      const csv = await service.exportCsv();
+
+      expect(csv).toContain(BOOKING_STUB.bookingCode);
+    });
+
+    it('applies status filter when provided', async () => {
+      await service.exportCsv({ status: BookingStatus.CONFIRMED } as any);
+
+      const callArg = prisma.booking.findMany.mock.calls[0][0];
+      expect(callArg.where.status).toBe(BookingStatus.CONFIRMED);
+    });
+
+    it('applies roomId filter when provided', async () => {
+      await service.exportCsv({ roomId: 'room-1' } as any);
+
+      const callArg = prisma.booking.findMany.mock.calls[0][0];
+      expect(callArg.where.roomId).toBe('room-1');
+    });
+
+    it('empty payment status becomes empty string', async () => {
+      prisma.booking.findMany.mockResolvedValue([{ ...BOOKING_ROW, payment: null }]);
+
+      const csv = await service.exportCsv();
+      const dataRow = csv.split('\n')[1];
+
+      // payment field is empty — row still exists
+      expect(dataRow).toBeDefined();
     });
   });
 

@@ -28,6 +28,14 @@ describe('NotificationsGateway', () => {
 
   it('should be defined', () => expect(gateway).toBeDefined());
 
+  // ─── afterInit lifecycle ─────────────────────────────────────────────────
+
+  describe('afterInit', () => {
+    it('does not throw when called', () => {
+      expect(() => gateway.afterInit()).not.toThrow();
+    });
+  });
+
   // ─── NG-1: event channel ─────────────────────────────────────────────────
 
   describe('emitNewBooking — event channel (NG-1)', () => {
