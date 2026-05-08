@@ -7,9 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { adminBookingsApi, AdminBooking } from '@/lib/admin-api';
+import { adminBookingsApi, adminBookingsExportApi, AdminBooking } from '@/lib/admin-api';
 import {
-  Search, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Loader2,
+  Search, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Loader2, Download,
 } from 'lucide-react';
 
 const STATUS_OPTS = [
@@ -37,6 +37,7 @@ function BookingsContent() {
   const [meta, setMeta] = useState<{ total: number; totalPages: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const status = sp.get('status') ?? '';
   const page   = Number(sp.get('page') ?? 1);
@@ -108,7 +109,22 @@ function BookingsContent() {
               ))}
             </SelectContent>
           </Select>
-          {meta && <span className="text-sm text-slate-500 ml-auto">{meta.total} kết quả</span>}
+          {meta && <span className="text-sm text-slate-500">{meta.total} kết quả</span>}
+          <Button
+            size="sm" variant="outline" className="gap-1.5 ml-auto"
+            disabled={exporting}
+            onClick={async () => {
+              setExporting(true);
+              try {
+                const p: Record<string, unknown> = {};
+                if (status) p.status = status;
+                await adminBookingsExportApi.exportCsv(p);
+              } finally { setExporting(false); }
+            }}
+          >
+            {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+            Export CSV
+          </Button>
         </div>
 
         {/* Table */}

@@ -41,13 +41,14 @@ export class RoomsService {
     const cached = await this.cacheManager.get(cacheKey);
     if (cached) return cached;
 
-    const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc', search, isActive } = query;
+    const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc', search, isActive, capacity } = query;
     const skip = (page - 1) * limit;
 
     const where: Prisma.RoomWhereInput = { deletedAt: null };
     if (!adminView) where.isActive = true;
     if (isActive !== undefined) where.isActive = isActive;
-    if (search) (where as any).name = { contains: search, mode: 'insensitive' };
+    if (search) where.name = { contains: search, mode: 'insensitive' };
+    if (capacity) where.capacity = { gte: capacity };
 
     const [items, total] = await this.repository.findAll({
       skip,

@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, Res, HttpCode, HttpStatus } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { BookingsService } from '../application/bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -27,6 +28,15 @@ export class BookingsAdminController {
   async blockDates(@Body() dto: BlockDatesDto) {
     const data = await this.bookingsService.blockDates(dto);
     return { message: 'Block ngày thành công', data };
+  }
+
+  @Get('export')
+  @ApiOperation({ summary: 'Export danh sách booking (CSV)' })
+  async export(@Res() res: Response, @Query() query: BookingQueryDto) {
+    const csv = await this.bookingsService.exportCsv(query);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="bookings.csv"');
+    res.send('﻿' + csv);
   }
 
   @Get()

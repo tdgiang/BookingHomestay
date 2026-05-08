@@ -303,75 +303,75 @@ HOURLY booking:
 
 ### Phase 1 — Foundation & Admin Auth (Tuần 1)
 **Backend:**
-- [ ] Thiết kế và migrate Prisma schema (Room, RoomPrice, Guest, Booking, Payment)
-- [ ] `UploadsModule` — multer local storage, serve `/uploads` static
-- [ ] `RoomsModule` — CRUD admin, upload ảnh, soft delete
-- [ ] Seed data: 5-10 phòng mẫu + bảng giá cơ bản
+- [x] Thiết kế và migrate Prisma schema (Room, RoomPrice, Guest, Booking, Payment)
+- [x] `UploadsModule` — multer local storage, serve `/uploads` static
+- [x] `RoomsModule` — CRUD admin, upload ảnh, soft delete
+- [x] Seed data: 5-10 phòng mẫu + bảng giá cơ bản
 
 **Frontend:**
-- [ ] Scaffold Next.js 16 project trong `src/frontend/`
-- [ ] Setup NextAuth v5, Tailwind v4, shadcn/ui, React Query, Zustand
-- [ ] Layout CMS: sidebar, header, breadcrumb
-- [ ] `/cms/rooms` — CRUD phòng + upload ảnh drag-drop
+- [x] Scaffold Next.js 16 project trong `src/frontend/`
+- [x] Setup NextAuth v5, Tailwind v4, shadcn/ui, React Query, Zustand
+- [x] Layout CMS: sidebar, header, breadcrumb
+- [x] `/cms/rooms` — CRUD phòng + upload ảnh drag-drop
 
 ---
 
 ### Phase 2 — Customer Portal: Hiển Thị Phòng (Tuần 2)
 **Backend:**
-- [ ] `PricingModule` — CRUD pricing rules, tính giá cho date/giờ cụ thể
-- [ ] `RoomsModule` — public endpoints: availability check, pricing preview
+- [x] `PricingModule` — CRUD pricing rules, tính giá cho date/giờ cụ thể
+- [x] `RoomsModule` — public endpoints: availability check, pricing preview
 
 **Frontend:**
-- [ ] Layout marketing: header, footer, responsive
-- [ ] `/` — Trang chủ + Search widget (2 chế độ: đêm/giờ)
-- [ ] `/rooms` — Danh sách phòng, filter, sort
-- [ ] `/rooms/[id]` — Chi tiết phòng: gallery lightbox, amenities, booking widget
-- [ ] Tích hợp Google Maps / Mapbox cho vị trí homestay
+- [x] Layout marketing: header, footer, responsive
+- [x] `/` — Trang chủ + Search widget (2 chế độ: đêm/giờ)
+- [x] `/rooms` — Danh sách phòng, filter, sort
+- [x] `/rooms/[id]` — Chi tiết phòng: gallery lightbox, amenities, booking widget
+- [x] Tích hợp Google Maps / Mapbox cho vị trí homestay
 
 ---
 
 ### Phase 3 — Booking Flow & Thanh Toán (Tuần 3–4)
 **Backend:**
-- [ ] `GuestsModule` — tìm hoặc tạo guest theo phone
-- [ ] `BookingsModule` — tạo booking public (check trùng lịch, tính giá, sinh booking code)
-- [ ] `PaymentsModule` — tạo payment record, webhook endpoint, confirm thủ công
-- [ ] Generate QR VietQR (static hoặc API VietQR)
+- [x] `GuestsModule` — tìm hoặc tạo guest theo phone
+- [x] `BookingsModule` — tạo booking public (check trùng lịch, tính giá, sinh booking code)
+- [x] `PaymentsModule` — tạo payment record, webhook endpoint, confirm thủ công
+- [x] Generate QR VietQR (static hoặc API VietQR)
 
 **Frontend:**
-- [ ] `/booking/[roomId]` — Bước 1: chọn thời gian + số khách + preview giá realtime
-- [ ] `/booking/[roomId]/info` — Bước 2: form thông tin khách (react-hook-form + zod)
-- [ ] `/booking/[roomId]/payment` — Bước 3: QR VietQR + hướng dẫn chuyển khoản
-- [ ] `/booking/success` — Trang xác nhận + booking code
-- [ ] `/booking/lookup` — Tra cứu trạng thái đặt phòng
+- [x] `/booking/[roomId]` — Bước 1: chọn thời gian + số khách + preview giá realtime
+- [x] `/booking/[roomId]/info` — Bước 2: form thông tin khách (react-hook-form + zod)
+- [x] `/booking/[roomId]/payment` — Bước 3: QR VietQR + hướng dẫn chuyển khoản
+- [x] `/booking/success` — Trang xác nhận + booking code
+- [x] `/booking/lookup` — Tra cứu trạng thái đặt phòng
 
 ---
 
 ### Phase 4 — Admin Dashboard & Calendar (Tuần 5–6)
 **Backend:**
-- [ ] `DashboardModule` — KPIs, occupancy rate, doanh thu
-- [ ] Booking calendar data endpoint (dạng events per room per day)
-- [ ] Block ngày API
-- [ ] Tạo booking thủ công (admin)
+- [x] `DashboardModule` — KPIs, occupancy rate, doanh thu
+- [x] Booking calendar data endpoint (dạng events per room per day)
+- [x] Block ngày API
+- [x] Tạo booking thủ công (admin)
 
 **Frontend:**
-- [ ] `/cms` — Dashboard: KPI cards, chart doanh thu (Recharts), task list
-- [ ] `/cms/calendar` — Gantt/Timeline calendar (thư viện: react-big-calendar hoặc custom)
-- [ ] `/cms/bookings` — Bảng quản lý booking, filter status, confirm payment
-- [ ] `/cms/pricing` — Calendar heatmap giá, form thêm/sửa rule giá
+- [x] `/cms` — Dashboard: KPI cards, chart doanh thu (Recharts), task list
+- [x] `/cms/calendar` — Gantt/Timeline calendar (thư viện: react-big-calendar hoặc custom)
+- [x] `/cms/bookings` — Bảng quản lý booking, filter status, confirm payment
+- [x] `/cms/pricing` — Calendar heatmap giá, form thêm/sửa rule giá
 
 ---
 
 ### Phase 5 — CRM & Notifications (Tuần 7–8)
 **Backend:**
-- [ ] `GuestsModule` — admin endpoints: filter, tags, lịch sử, export CSV
-- [ ] `NotificationsModule` — BullMQ email queue (nhắc check-in T-1)
-- [ ] WebSocket gateway — real-time notify khi có booking mới
-- [ ] Audit log cho hành động admin
+- [x] `GuestsModule` — admin endpoints: filter (search + tags), lịch sử đặt phòng, export CSV
+- [x] `NotificationsModule` — BullMQ email queue (nhắc check-in T-1)
+- [x] WebSocket gateway (`/notifications`) — real-time notify khi có booking mới
+- [x] Audit log interceptor cho hành động admin (POST/PATCH/DELETE /admin/*)
 
 **Frontend:**
-- [ ] `/cms/guests` + `/cms/guests/[id]` — CRM đầy đủ
-- [ ] Notification bell realtime trên admin header
-- [ ] Export Excel/CSV (booking, guests)
+- [x] `/cms/guests` + `/cms/guests/[id]` — CRM đầy đủ (list, filter, tags, export, detail + history)
+- [x] Notification bell realtime trên admin header (Socket.IO)
+- [x] Export CSV (booking, guests)
 
 ---
 
