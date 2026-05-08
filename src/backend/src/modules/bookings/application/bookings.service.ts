@@ -5,6 +5,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { BookingsRepository } from '../infrastructure/bookings.repository';
 import { GuestsService } from '../../guests/application/guests.service';
 import { PricingService } from '../../pricing/application/pricing.service';
+import { NotificationsService } from '../../notifications/application/notifications.service';
 import { CreateBookingDto } from '../interface/dto/create-booking.dto';
 import { UpdateBookingDto } from '../interface/dto/update-booking.dto';
 import { BookingQueryDto } from '../interface/dto/booking-query.dto';
@@ -24,6 +25,7 @@ export class BookingsService {
     private readonly guestsService: GuestsService,
     private readonly pricingService: PricingService,
     private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async create(dto: CreateBookingDto) {
@@ -101,6 +103,14 @@ export class BookingsService {
       return created;
     });
 
+    await this.notificationsService.onNewBooking({
+      bookingCode: booking.bookingCode,
+      guestName: booking.guest.fullName,
+      guestEmail: booking.guest.email,
+      roomName: booking.room.name,
+      checkIn: booking.checkIn,
+    });
+
     return { booking, priceResult };
   }
 
@@ -124,7 +134,7 @@ export class BookingsService {
       where.checkIn = { gte: day, lt: next };
     }
 
-    const [items, total] = await this.repository.findAll({
+    const [items, total] = await this.repository.findAllAdmin({
       skip,
       take: limit,
       where,
@@ -151,6 +161,41 @@ export class BookingsService {
       throw new BadRequestException('Booking đã bị hủy trước đó');
     }
     return this.repository.softRemove({ id });
+  }
+
+  async exportCsv(query?: Partial<BookingQueryDto>): Promise<string> {
+    const where: Prisma.BookingWhereInput = { deletedAt: null };
+    if (query?.status) where.status = query.status;
+    if (query?.roomId) where.roomId = query.roomId;
+
+    const bookings = await this.prisma.booking.findMany({
+      where,
+      include: {
+        room: { select: { name: true } },
+        guest: { select: { fullName: true, phone: true, email: true } },
+        payment: { select: { status: true, paidAt: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const header = 'Mã ĐP,Phòng,Khách,SĐT,Email,Check-in,Check-out,Loại,Trạng thái,Tổng giá,Thanh toán,Ngày tạo';
+    const rows = bookings.map((b) =>
+      [
+        b.bookingCode,
+        `"${b.room.name}"`,
+        `"${b.guest.fullName.replace(/"/g, '""')}"`,
+        b.guest.phone,
+        b.guest.email ?? '',
+        new Date(b.checkIn).toLocaleDateString('vi-VN'),
+        new Date(b.checkOut).toLocaleDateString('vi-VN'),
+        b.bookingType,
+        b.status,
+        b.totalPrice,
+        b.payment?.status ?? '',
+        new Date(b.createdAt).toLocaleDateString('vi-VN'),
+      ].join(','),
+    );
+    return [header, ...rows].join('\n');
   }
 
   async blockDates(dto: BlockDatesDto) {

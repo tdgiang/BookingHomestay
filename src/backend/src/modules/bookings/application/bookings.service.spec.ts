@@ -96,6 +96,7 @@ describe('BookingsService', () => {
       countConflicts: jest.fn(),
       findByCode: jest.fn(),
       findAll: jest.fn(),
+      findAllAdmin: jest.fn(),
       findOne: jest.fn(),
       update: jest.fn(),
       softRemove: jest.fn(),
@@ -339,7 +340,7 @@ describe('BookingsService', () => {
 
   describe('findAll', () => {
     it('BK-7: returns paginated list with meta', async () => {
-      repository.findAll.mockResolvedValue([[BOOKING_STUB], 10]);
+      repository.findAllAdmin.mockResolvedValue([[BOOKING_STUB], 10]);
 
       const result = await service.findAll({ page: 1, limit: 5 } as any) as any;
 
@@ -348,49 +349,49 @@ describe('BookingsService', () => {
     });
 
     it('BK-7: applies status filter when provided', async () => {
-      repository.findAll.mockResolvedValue([[], 0]);
+      repository.findAllAdmin.mockResolvedValue([[], 0]);
 
       await service.findAll({ status: BookingStatus.CONFIRMED } as any);
 
-      const callArg = repository.findAll.mock.calls[0][0];
+      const callArg = repository.findAllAdmin.mock.calls[0][0];
       expect(callArg.where.status).toBe(BookingStatus.CONFIRMED);
     });
 
     it('BK-7: applies roomId filter when provided', async () => {
-      repository.findAll.mockResolvedValue([[], 0]);
+      repository.findAllAdmin.mockResolvedValue([[], 0]);
 
       await service.findAll({ roomId: 'room-1' } as any);
 
-      const callArg = repository.findAll.mock.calls[0][0];
+      const callArg = repository.findAllAdmin.mock.calls[0][0];
       expect(callArg.where.roomId).toBe('room-1');
     });
 
     it('BK-7: excludes soft-deleted bookings', async () => {
-      repository.findAll.mockResolvedValue([[], 0]);
+      repository.findAllAdmin.mockResolvedValue([[], 0]);
 
       await service.findAll({} as any);
 
-      const callArg = repository.findAll.mock.calls[0][0];
+      const callArg = repository.findAllAdmin.mock.calls[0][0];
       expect(callArg.where.deletedAt).toBeNull();
     });
 
     it('BK-7: applies date filter — sets checkIn gte/lt for that calendar day', async () => {
-      repository.findAll.mockResolvedValue([[], 0]);
+      repository.findAllAdmin.mockResolvedValue([[], 0]);
 
       await service.findAll({ date: '2026-07-01' } as any);
 
-      const callArg = repository.findAll.mock.calls[0][0];
+      const callArg = repository.findAllAdmin.mock.calls[0][0];
       expect(callArg.where.checkIn).toBeDefined();
       expect((callArg.where.checkIn as any).gte).toBeInstanceOf(Date);
       expect((callArg.where.checkIn as any).lt).toBeInstanceOf(Date);
     });
 
     it('BK-7: date filter lt is exactly 1 day after gte', async () => {
-      repository.findAll.mockResolvedValue([[], 0]);
+      repository.findAllAdmin.mockResolvedValue([[], 0]);
 
       await service.findAll({ date: '2026-07-15' } as any);
 
-      const callArg = repository.findAll.mock.calls[0][0];
+      const callArg = repository.findAllAdmin.mock.calls[0][0];
       const checkIn = callArg.where.checkIn as any;
       const diffMs = checkIn.lt.getTime() - checkIn.gte.getTime();
       expect(diffMs).toBe(24 * 60 * 60 * 1000);
