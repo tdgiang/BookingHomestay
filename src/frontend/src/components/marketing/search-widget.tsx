@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { Search } from 'lucide-react';
+import { Search, Moon, Clock } from 'lucide-react';
 
 type Mode = 'nightly' | 'hourly';
 
@@ -44,13 +44,16 @@ export function SearchWidget({ className }: { className?: string }) {
             key={m}
             onClick={() => setMode(m)}
             className={cn(
-              'px-4 py-1.5 rounded-md text-sm font-medium transition-all',
+              'inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer',
               mode === m
                 ? 'bg-white text-slate-900 shadow-sm'
                 : 'text-slate-500 hover:text-slate-700',
             )}
           >
-            {m === 'nightly' ? '🌙 Theo đêm' : '⏰ Theo giờ'}
+            {m === 'nightly'
+              ? <><Moon size={13} />Theo đêm</>
+              : <><Clock size={13} />Theo giờ</>
+            }
           </button>
         ))}
       </div>
