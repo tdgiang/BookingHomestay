@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { RoomCard } from '@/components/marketing/room-card';
 import { Room } from '@/lib/rooms';
@@ -21,7 +21,7 @@ interface Meta {
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
 const LIMIT = 9;
 
-export default function RoomsPage() {
+function RoomsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -44,10 +44,16 @@ export default function RoomsPage() {
   const fetchRooms = useCallback(async () => {
     setLoading(true);
     try {
+      // sort giá trị: "name" | "capacity" | "-createdAt"
+      const isDesc = sort.startsWith('-');
+      const sortBy = isDesc ? sort.slice(1) : sort;
+      const sortOrder = isDesc ? 'desc' : 'asc';
+
       const params: Record<string, string | number> = {
         page,
         limit: LIMIT,
-        sort,
+        sortBy,
+        sortOrder,
         isActive: 'true',
       };
       if (capacity) params.capacity = capacity;
@@ -118,7 +124,7 @@ export default function RoomsPage() {
             <SlidersHorizontal size={15} />
             Bộ lọc
           </Button>
-          <Select value={sort} onValueChange={(v) => { setSort(v); setPage(1); }}>
+          <Select value={sort} onValueChange={(v) => { setSort(v ?? 'name'); setPage(1); }}>
             <SelectTrigger className="w-44 h-9 text-sm">
               <SelectValue />
             </SelectTrigger>
@@ -261,5 +267,13 @@ export default function RoomsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function RoomsPage() {
+  return (
+    <Suspense>
+      <RoomsContent />
+    </Suspense>
   );
 }
