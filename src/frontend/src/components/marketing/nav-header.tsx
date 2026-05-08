@@ -34,8 +34,8 @@ export function NavHeader() {
               {l.label}
             </Link>
           ))}
-          <Button size="sm" asChild>
-            <Link href="/rooms">Đặt phòng ngay</Link>
+          <Button size="sm" nativeButton={false} render={<Link href="/rooms" />}>
+            Đặt phòng ngay
           </Button>
         </nav>
 
@@ -57,8 +57,8 @@ export function NavHeader() {
               {l.label}
             </Link>
           ))}
-          <Button size="sm" className="w-full" asChild>
-            <Link href="/rooms">Đặt phòng ngay</Link>
+          <Button size="sm" className="w-full" nativeButton={false} render={<Link href="/rooms" />}>
+            Đặt phòng ngay
           </Button>
         </div>
       )}
