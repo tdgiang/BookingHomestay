@@ -40,7 +40,9 @@ async function fetchAdmin<T>(path: string, token: string): Promise<T> {
     headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store',
   });
+  if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
   const json = await res.json();
+  if (json.data === null || json.data === undefined) throw new Error(`API ${path} returned null data`);
   return json.data as T;
 }
 
