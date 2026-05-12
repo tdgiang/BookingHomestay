@@ -109,6 +109,8 @@ model Room {
   bookings    Booking[]
   prices      RoomPrice[]
 
+  @@index([isActive, deletedAt])
+  @@index([capacity, isActive, deletedAt])
   @@map("rooms")
 }
 
@@ -137,6 +139,7 @@ model RoomPrice {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
+  @@index([roomId, priceType])
   @@map("room_prices")
 }
 
@@ -153,6 +156,8 @@ model Guest {
 
   bookings  Booking[]
 
+  @@index([phone, deletedAt])
+  @@index([deletedAt, createdAt])
   @@map("guests")
 }
 
@@ -184,6 +189,12 @@ model Booking {
 
   payment        Payment?
 
+  // Availability check: roomId + checkIn/checkOut overlap queries
+  @@index([roomId, checkIn, checkOut, status, deletedAt])
+  // Admin list filter by status + date
+  @@index([status, deletedAt, createdAt])
+  // Guest booking history
+  @@index([guestId, deletedAt])
   @@map("bookings")
 }
 

@@ -20,6 +20,8 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor';
+import Keyv from 'keyv';
+import KeyvRedis from '@keyv/redis';
 
 @Module({
   imports: [
@@ -47,8 +49,27 @@ import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor
         },
       ],
     }),
-    CacheModule.register({
+    CacheModule.registerAsync({
       isGlobal: true,
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const host = config.get<string>('REDIS_HOST', 'localhost');
+        const port = config.get<number>('REDIS_PORT', 6379);
+        const password = config.get<string>('REDIS_PASSWORD');
+        const redisUrl = password
+          ? `redis://:${password}@${host}:${port}`
+          : `redis://${host}:${port}`;
+        return {
+          stores: [
+            new Keyv({
+              store: new KeyvRedis(redisUrl),
+              namespace: 'cache',
+            }),
+          ],
+          ttl: 60_000, // 60s default TTL
+        };
+      },
     }),
     PrismaModule,
     AuthModule,

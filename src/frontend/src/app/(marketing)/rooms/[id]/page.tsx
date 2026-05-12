@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
 import { serverApi } from '@/lib/api';
 import { Room } from '@/lib/rooms';
 import { RoomGallery } from '@/components/marketing/room-gallery';
@@ -6,6 +7,7 @@ import { BookingWidget } from '@/components/marketing/booking-widget';
 import { Badge } from '@/components/ui/badge';
 import { Users, Layers, MapPin, ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
+import Script from 'next/script';
 
 interface RoomPriceRule {
   id: string;
@@ -21,6 +23,47 @@ interface RoomPriceRule {
 
 interface RoomDetail extends Room {
   prices?: RoomPriceRule[];
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const room = await getRoom(id);
+  if (!room) return { title: 'Phòng không tồn tại' };
+
+  const basePrice = resolveBasePrice(room.prices ?? []);
+  const description = room.description
+    ? room.description.slice(0, 155)
+    : `Phòng ${room.name} tại Homestay Đà Lạt. Sức chứa ${room.capacity} người.${basePrice ? ` Giá từ ${basePrice.toLocaleString('vi-VN')}₫/đêm.` : ''}`;
+
+  const imageUrl =
+    room.images?.[0]
+      ? `${process.env.NEXT_PUBLIC_API_URL}/uploads/${room.images[0]}`
+      : undefined;
+
+  return {
+    title: `${room.name} — Homestay Đà Lạt`,
+    description,
+    openGraph: {
+      title: `${room.name} — Homestay Đà Lạt`,
+      description,
+      type: 'website',
+      locale: 'vi_VN',
+      images: imageUrl ? [{ url: imageUrl, alt: room.name }] : [],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${room.name} — Homestay Đà Lạt`,
+      description,
+      images: imageUrl ? [imageUrl] : [],
+    },
+    alternates: {
+      canonical: `/rooms/${id}`,
+    },
+  };
 }
 
 async function getRoom(id: string): Promise<RoomDetail | null> {
@@ -54,8 +97,38 @@ export default async function RoomDetailPage({
   const basePrice = resolveBasePrice(room.prices);
 
   const amenitiesAll = room.amenities ?? [];
+  const baseImageUrl =
+    room.images?.[0]
+      ? `${process.env.NEXT_PUBLIC_API_URL}/uploads/${room.images[0]}`
+      : undefined;
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'LodgingBusiness',
+    name: room.name,
+    description: room.description ?? undefined,
+    ...(baseImageUrl ? { image: baseImageUrl } : {}),
+    ...(basePrice
+      ? {
+          priceRange: `${basePrice.toLocaleString('vi-VN')}₫`,
+        }
+      : {}),
+    amenityFeature: amenitiesAll.map((a) => ({
+      '@type': 'LocationFeatureSpecification',
+      name: a,
+      value: true,
+    })),
+    numberOfRooms: 1,
+    occupancy: { '@type': 'QuantitativeValue', maxValue: room.capacity },
+  };
 
   return (
+    <>
+      <Script
+        id={`room-jsonld-${room.id}`}
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Back */}
       <Link
@@ -142,6 +215,7 @@ export default async function RoomDetailPage({
         </div>
       </div>
     </div>
+    </>
   );
 }
 

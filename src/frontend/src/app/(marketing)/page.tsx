@@ -3,6 +3,7 @@ import { RoomCard } from '@/components/marketing/room-card';
 import { serverApi } from '@/lib/api';
 import { Room } from '@/lib/rooms';
 import Link from 'next/link';
+import Script from 'next/script';
 import {
   Wifi, Wind, Tv, MapPin, ShieldCheck, HeartHandshake,
   Star, BadgePercent, MessageCircle, Gift, Users, ArrowRight,
@@ -92,11 +93,37 @@ const LOCATION_POINTS = [
   { icon: MapPin, text: '30 phút đến Sân bay Liên Khương' },
 ];
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+
+const homepageJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'LodgingBusiness',
+  name: 'Homestay Đà Lạt',
+  description: 'Homestay tại Đà Lạt — đặt phòng trực tiếp, giá tốt nhất, không qua trung gian.',
+  url: SITE_URL,
+  address: {
+    '@type': 'PostalAddress',
+    addressLocality: 'Đà Lạt',
+    addressRegion: 'Lâm Đồng',
+    addressCountry: 'VN',
+  },
+  contactPoint: {
+    '@type': 'ContactPoint',
+    contactType: 'reservations',
+    availableLanguage: 'Vietnamese',
+  },
+};
+
 export default async function HomePage() {
   const rooms = await getFeaturedRooms();
 
   return (
     <>
+      <Script
+        id="homepage-jsonld"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(homepageJsonLd) }}
+      />
       {/* ──────────────────────────────────────────── HERO */}
       <section className="relative min-h-[92vh] flex items-center text-white overflow-hidden">
         {/* Background image */}

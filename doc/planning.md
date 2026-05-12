@@ -376,13 +376,13 @@ HOURLY booking:
 ---
 
 ### Phase 6 — Testing, SEO & Deployment (Tuần 9–10)
-- [ ] Unit tests backend (services, repositories)
-- [ ] E2E tests booking flow (Playwright)
-- [ ] SSR/SSG cho `/rooms` và `/rooms/[id]` — SEO optimization
-- [ ] Open Graph tags, sitemap.xml, JSON-LD structured data
-- [ ] Performance audit: LCP < 2.5s, API p95 < 300ms
-- [ ] CORS, Helmet.js, rate limiting review
-- [ ] Production deployment (Vercel + Railway hoặc VPS)
+- [x] Unit tests backend (services, repositories) — 374 tests, 28 suites
+- [x] E2E tests booking flow (Playwright) — `src/frontend/e2e/` (homepage, rooms, booking-flow)
+- [x] SSR/SSG cho `/rooms` và `/rooms/[id]` — `/rooms` chuyển thành server component với SSR
+- [x] Open Graph tags, sitemap.xml, JSON-LD structured data — layout.tsx, generateMetadata, /sitemap.xml, /robots.txt, JSON-LD homepage + room detail
+- [x] Performance audit: LCP < 2.5s, API p95 < 300ms — next.config: image optimization AVIF/WebP, bundle tree-shaking, standalone output; backend: gzip compression, Redis-backed cache, 6 Prisma DB indexes (rooms, bookings, guests)
+- [x] CORS, Helmet.js, rate limiting review — Helmet v8 + CSP headers, CORS multi-origin support
+- [x] Production deployment — Dockerfile (backend + frontend standalone), docker-compose.prod.yml, vercel.json, GitHub Actions CI (.github/workflows/ci.yml), .env.example files
 
 ---
 
