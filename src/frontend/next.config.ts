@@ -38,13 +38,6 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Cache static assets aggressively
-        source: '/_next/static/(.*)',
-        headers: [
-          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
-        ],
-      },
-      {
         // Cache uploaded images (served from backend)
         source: '/uploads/(.*)',
         headers: [
@@ -56,6 +49,11 @@ const nextConfig: NextConfig = {
 
   // Disable x-powered-by header
   poweredByHeader: false,
+
+  // Turbopack: pin workspace root to this package to avoid false detection
+  turbopack: {
+    root: __dirname,
+  },
 
   // Experimental: reduce JS bundle for faster LCP
   experimental: {
